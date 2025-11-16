@@ -1,0 +1,61 @@
+% archivo: player2.pl
+:- module(player2, [ai_move/3]).
+
+% nuestra estra
+% Se reordenan las reglas para verificar primero las jugadas de
+% mayor impacto y más rápidas de calcular, como tomar el centro.
+
+ai_move(Player, Board, Pos) :- movida_critica(Player, Board, Player, Pos), !.
+ai_move(Player, Board, Pos) :-
+    switch(Player, Opponent),
+    movida_critica(Opponent, Board, Player, Pos), !.
+ai_move(_, Board, Pos) :- tomar_centro(Board, Pos), !.
+ai_move(Player, Board, Pos) :- crear_bifurcacion(Player, Board, Pos), !.
+ai_move(_, Board, Pos) :- tomar_esquina_vacia(Board, Pos), !.
+ai_move(_, Board, Pos) :- tomar_lado_vacio(Board, Pos), !.
+ai_move(_, Board, Pos) :- tomar_primera_casilla_vacia(Board, Pos). % <- CAMBIO AQUÍ
+
+% logica de los movimientos 
+
+% 1 & 2. Lógica para ganar/bloquear
+movida_critica(Target, Board, _, Move) :-
+    winning_combination(Line),
+    revisar_linea(Target, Board, Line, Move).
+
+revisar_linea(P, Board, [P1, P2, P3], P1) :- nth1(P2, Board, P), nth1(P3, Board, P), nth1(P1, Board, ' ').
+revisar_linea(P, Board, [P1, P2, P3], P2) :- nth1(P1, Board, P), nth1(P3, Board, P), nth1(P2, Board, ' ').
+revisar_linea(P, Board, [P1, P2, P3], P3) :- nth1(P1, Board, P), nth1(P2, Board, P), nth1(P3, Board, ' ').
+
+% 3. Tomar el centro
+tomar_centro([_, _, _, _, ' ', _, _, _, _], 5).
+
+% 4. Crear una trampa
+% busca tomar esquinas opuestas si el centro es del oponente. 
+crear_bifurcacion(P, [' ', _, _, _, O, _, _, _, ' '], 1) :- switch(P, O).
+crear_bifurcacion(P, [_, _, ' ', _, O, _, ' ', _, _], 3) :- switch(P, O).
+
+% 5. Tomar una esquina vacía
+tomar_esquina_vacia([' ', _, _, _, _, _, _, _, _], 1).
+tomar_esquina_vacia([_, _, ' ', _, _, _, _, _, _], 3).
+tomar_esquina_vacia([_, _, _, _, _, _, ' ', _, _], 7).
+tomar_esquina_vacia([_, _, _, _, _, _, _, _, ' '], 9).
+
+% 6. Tomar un lado vacío
+tomar_lado_vacio([_, ' ', _, _, _, _, _, _, _], 2).
+tomar_lado_vacio([_, _, _, ' ', _, _, _, _, _], 4).
+tomar_lado_vacio([_, _, _, _, _, ' ', _, _, _], 6).
+tomar_lado_vacio([_, _, _, _, _, _, _, ' ', _], 8).
+
+% 7. Tomar la primera casilla vacía 
+% Esta regla busca la primera posición (Pos) en el tablero (Board) que
+% contenga un espacio (' ').
+tomar_primera_casilla_vacia(Board, Pos) :-
+    nth1(Pos, Board, ' ').
+
+% PREDICADOS BASE
+winning_combination([1, 2, 3]). winning_combination([4, 5, 6]). winning_combination([7, 8, 9]).
+winning_combination([1, 4, 7]). winning_combination([2, 5, 8]). winning_combination([3, 6, 9]).
+winning_combination([1, 5, 9]). winning_combination([3, 5, 7]).
+
+switch(x, o).
+switch(o, x).

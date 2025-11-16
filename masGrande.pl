@@ -1,0 +1,7 @@
+masGrande(elefante,caballo).
+masGrande(caballo,perro).
+masGrande(perro,raton).
+muchoMasGrande(A,C):- masGrande(A,B),masGrande(B,C).
+%ahora ocupando recursividad.
+mmgrande(A,B):- masGrande(A,B).%primera regla(si se cumple de detiene)
+mmgrande(A,B):- masGrande(A,X),mmgrande(X,B).%segunda regla(se resuelve de forma recursiva)

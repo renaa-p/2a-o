@@ -1,0 +1,218 @@
+% --- Tic Tac Toe in Prolog ---
+% Run with: ?- play.
+% Execute with: swipl -s jugar.pl -g play -t halt
+:- use_module('player1.pl', [ ai_move/3 as player1_move ]),
+    use_module('player2.pl', [ ai_move/3 as player2_move ]).
+
+% Parameters
+config(delay(0)).          % delay value to slow AI pace
+config(p_mode(x, auto)).   % use manual(auto) to ask a human(an AI) player
+config(p_mode(o, auto)).   % use manual(auto) to ask a human(an AI) player
+config(manual_check(yes)). % use no(yes) to (not) allow manual invalid moves
+config(sites(no)).         % use yes(no) to (not) show numbers in empty spaces
+config(pout(yes)).         % use yes(no) to (not) save match results in matches.csv
+config(show(yes)).         % use yes(no) to (not) show the board and midgame messages
+config(ntest(1000)).       % number of games to play in test
+initial_board([' ',' ',' ',' ',' ',' ',' ',' ',' ']).
+
+% Play several games
+run_play:-
+    get_time(Tini),
+    config(ntest(N)),
+    test_play(N, Tini, Ttotal),
+    format('~n~tPlayed ~d games in ~2f s~t~40|~n',[N, Ttotal]),!.
+test_play(1, Tini, Ttotal):-
+    play,
+    get_time(Tend),
+    Ttotal is Tend-Tini,!.
+test_play(Games, Tini, Ttotal):-
+    Left is Games-1,
+    play,
+    test_play(Left, Tini, Ttotal).
+
+% Start the game
+play :- initial_board(Board),
+    display_board(Board),
+    play_turn(x, Board, [0.0, 0.0]).
+
+% Set AIs or Player moves
+player_move(x, auto, Board, Pos, Dtime):-
+    get_time(Ini),
+    player1_move(x, Board, Pos),
+    get_time(Fin),
+    Dtime is Fin-Ini,
+    move_message(Dtime, Pos).
+player_move(o, auto, Board, Pos, Dtime):-
+    get_time(Ini),
+    player2_move(o, Board, Pos),
+    get_time(Fin),
+    Dtime is Fin-Ini,
+    move_message(Dtime, Pos).
+player_move(_, manual, Board, Pos, Dtime):-
+    get_time(Ini),
+    human_move(Board, Pos),
+    get_time(Fin),
+    Dtime is Fin-Ini,
+    move_message(Dtime, Pos).
+
+move_message(_, _):-
+    config(show(no)),!.
+move_message(Delta, Pos):-
+    Micro is round(Delta*1000000),
+    format('~n~tPosicion: ~d~tTiempo: ~3d ms~t~40|~n',[Pos,Micro]).
+
+% Basic Human move input
+human_move(Board, Pos):-
+    write('Elige tu casilla (1-9): '), read(Pos),
+    guard_check(Board, Pos), !.
+human_move(Board, Pos):-
+    format('~`-tMal movimiento, vuelve a intentar!~`-t~40|~n',[]),
+    human_move(Board, Pos).
+
+guard_check(Board, Pos):-
+    config(manual_check(yes)),!,
+    integer(Pos),
+    nth1(Pos, Board, ' ').
+guard_check(_, Pos):-
+    integer(Pos).
+
+% Display the board
+display_board(_):-
+    config(show(no)),!.
+display_board([A,B,C,D,E,F,G,H,I]) :-
+    fill(A,1,Ao), fill(B,2,Bo), fill(C,3,Co),
+    fill(D,4,Do), fill(E,5,Eo), fill(F,6,Fo),
+    fill(G,7,Go), fill(H,8,Ho), fill(I,9,Io),
+    format('~t┌───┬───┬───┐~t~40|~n'),
+    format('~t| ~w | ~w | ~w |~t~40|~n', [Ao,Bo,Co]),
+    format('~t├───┼───┼───┤~t~40|~n'),
+    format('~t| ~w | ~w | ~w |~t~40|~n', [Do,Eo,Fo]),
+    format('~t├───┼───┼───┤~t~40|~n'),
+    format('~t| ~w | ~w | ~w |~t~40|~n', [Go,Ho,Io]),
+    format('~t└───┴───┴───┘~t~40|~n~n'),!.
+display_board(Player) :-
+    switch(Player, W),
+    fill(Player,_,Out),
+    format('~n~`-t~40|~n~tJugada Invalida de ~w~t~40|~n',[Out]),
+    format('~`-t~40|~n~tJUGADOR ~w DESCALIFICADO!~t~40|~n',[Out]),
+    display_board([W,W,W,W,W,W,W,W,W]),!.
+fill(Field, Value, Value):-
+    config(sites(yes)),
+    Field=' '.
+fill(x,_,'X').
+fill(o,_,'O').
+fill(Field,_,Field).
+
+% Play a turn
+play_turn(Player, Board, Times):-
+    turn_message(start, Player),
+    move(Player, Board, Times, NewBoard, NewTimes),
+    display_board(NewBoard),!,
+    end_turn(Player, NewBoard, NewTimes).
+
+end_turn(Loser,Loser,Times):-
+    switch(Loser, Winner),
+    turn_message(end, _),
+    turn_message(win, Winner),
+    export_game(Winner, error, Times),
+    turn_message(finish, Times),!.
+end_turn(Winner, Board, Times) :- winner(Board, Winner),
+    turn_message(end, _),
+    turn_message(win, Winner),
+    export_game(Winner, normal,Times),
+    turn_message(finish, Times), !.
+end_turn(_, Board, Times) :- full(Board),
+    turn_message(tie, _),
+    tie_breaker(Times),
+    turn_message(finish, Times), !.
+end_turn(Player, Board, Times) :- switch(Player,Next),
+    play_turn(Next, Board, Times),!.
+
+export_game(Winner, EndType, [T1, T2]):-
+    config(pout(yes)),
+    open('match.csv',append,Fd),
+    format(Fd, '"~w","~w",~4f,~4f~n',[Winner, EndType, T1, T2]),
+    close(Fd),!.
+export_game(_, _, _).
+
+turn_message(start, _):-
+    config(show(no)),!.
+turn_message(start, Player):-
+    format('~`-t~40|~n~3|Jugador ~w esta pensando...~t~t~40|~n',[Player]),
+    format('~`-t~40|~n',[]), !.
+turn_message(end, _):-
+    format('~tFin del Juego!~t~40|~n'),!.
+turn_message(win, Player):-
+    fill(Player, _, Out),
+    format('~tGanador: ~w~t~40|~n', [Out]),!.
+turn_message(finish, Times):-
+    format('~n~tTiempo X~tTiempo O~t~40|~n'),
+    format('~t~4f s~t~4f s~t~40|~n',Times),!.
+turn_message(tie, _):-
+    format('~tFin del Juego~t~40|~n~tEmpate!~t~40|~n',[]),!.
+turn_message(tiebreak, none):-
+    format('~tEmpate completo!~t~40|~n',[]),!.
+turn_message(tiebreak, Player):-
+    fill(Player, _, Out),
+    format('~tJugador ~w gano por tiempo!~t~40|~n',[Out]).
+
+tie_breaker([T1, T2]):- 0.001<T2-T1,
+    turn_message(tiebreak, x),
+    export_game(x, tiebreak, [T1, T2]),!.
+tie_breaker([T1, T2]):- 0.001<T1-T2,
+    turn_message(tiebreak, o),
+    export_game(o, tiebreak, [T1, T2]),!.
+tie_breaker([T1, T2]):-
+    export_game(t, tie, [T1, T2]),
+    turn_message(tiebreak, none).
+
+% Switch player
+switch(x, o).
+switch(o, x).
+
+% Check if the board is full
+full(Board) :- \+ member(' ', Board).
+
+% Player move
+move(Player, Board, Times, NewBoard, NewTimes):-
+    config(p_mode(Player, Mode)),
+    player_move(Player, Mode, Board, Pos, Dtime),
+    update_times(Dtime, Player, Times, NewTimes),
+    extend_wait(Player, Dtime),
+    set_cell(Board, Pos, Player, NewBoard),!.
+
+extend_wait(Player,Dtime):-
+    config(p_mode(Player,auto)),
+    config(delay(Sfactor)),
+    Wait is Dtime*Sfactor,
+    sleep(Wait),!.
+extend_wait(_,_).
+
+update_times(Dtime, x, [Ptime, Otime], [Ctime, Otime]):-
+    Ctime is Ptime+Dtime.
+update_times(Dtime, o, [Otime, Ptime], [Otime, Ctime]):-
+    Ctime is Ptime+Dtime.
+
+% Set a cell in the board
+set_cell(Board, Pos, Player, NewBoard) :-
+    nth1(Pos, Board, ' ', Rest),
+    nth1(Pos, NewBoard, Player, Rest),!.
+set_cell(_,_,Player,Player).
+
+% Winning positions
+winning_combination([1,2,3]).
+winning_combination([4,5,6]).
+winning_combination([7,8,9]).
+winning_combination([1,4,7]).
+winning_combination([2,5,8]).
+winning_combination([3,6,9]).
+winning_combination([1,5,9]).
+winning_combination([3,5,7]).
+
+% Winner detection
+winner(Board, Player) :-
+    winning_combination([A,B,C]),
+    nth1(A, Board, Player),
+    Player\=' ',
+    nth1(B, Board, Player),
+    nth1(C, Board, Player),!.

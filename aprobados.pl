@@ -1,0 +1,16 @@
+calificacion(ana, matematicas, 6.2).
+calificacion(ana, fisica, 6.6).
+calificacion(juan, matematicas, 4.9).
+calificacion(juan, fisica, 5.9).
+
+aprueba(X, Materia) :- calificacion(X, Materia, Nota), Nota >= 5.0.
+
+% Definir una regla aprobados(X, Lista) que arroje una lista con los
+% ramos aprobados por el estudiante X %
+
+aprobados(X,Lista) :-  findall(Materia,aprueba(X,Materia),Lista).
+
+% Definir una regla cursos_aprobados(X, N) que de cuenta de los N ramos
+% aprobados por el estudiante X.%
+
+cursos_aprobados(X,N) :- aprobados(X,Lista), length(Lista,N).
